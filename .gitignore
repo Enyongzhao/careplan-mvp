@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.egg-info/
+venv/
+.venv/
+
+# Mac
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Database
+*.sqlite3

@@ -14,7 +14,6 @@ def create_order(request):
 
     # 生成一个唯一 ID
     order_id = str(uuid.uuid4())[:8]
-
     # 先把订单存进内存，状态设为 processing
     orders_store[order_id] = {
         "id": order_id,
@@ -28,7 +27,6 @@ def create_order(request):
         "primary_diagnosis": data.get("primary_diagnosis", ""),
         "patient_records": data.get("patient_records", ""),
     }
-
     # 同步调用 LLM（用户要在这里等 10-20 秒）
     try:
         care_plan_content = call_llm(orders_store[order_id])
@@ -37,7 +35,6 @@ def create_order(request):
     except Exception as e:
         orders_store[order_id]["status"] = "failed"
         orders_store[order_id]["content"] = str(e)
-
     return Response(orders_store[order_id])
 
 

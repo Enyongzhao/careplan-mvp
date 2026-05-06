@@ -23,8 +23,12 @@ ROOT_URLCONF = 'careplan.urls'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': ':memory:',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('POSTGRES_DB', 'careplan'),
+        'USER': os.environ.get('POSTGRES_USER', 'careplan'),
+        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'careplan'),
+        'HOST': os.environ.get('POSTGRES_HOST', 'db'),
+        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
     }
 }
 

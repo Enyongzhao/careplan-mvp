@@ -1,9 +1,14 @@
+import redis
 import openai
 from django.conf import settings
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .models import Patient, Order, CarePlan
+
+
+def _get_redis():
+    return redis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, decode_responses=True)
 
 
 @api_view(['POST'])
@@ -27,17 +32,11 @@ def create_order(request):
         patient_records=data.get('patient_records', ''),
     )
 
-    care_plan = CarePlan.objects.create(order=order, status='processing')
+    care_plan = CarePlan.objects.create(order=order, status='pending')
 
-    try:
-        care_plan.content = call_llm(order, patient)
-        care_plan.status = 'completed'
-    except Exception as e:
-        care_plan.status = 'failed'
-        care_plan.content = str(e)
-    care_plan.save()
+    _get_redis().rpush(settings.REDIS_CAREPLAN_QUEUE, str(care_plan.id))
 
-    return Response(_build_response(order, patient, care_plan))
+    return Response({'order_id': str(order.id), 'careplan_id': care_plan.id, 'status': 'pending'}, status=202)
 
 
 @api_view(['GET'])

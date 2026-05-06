@@ -32,5 +32,8 @@ DATABASES = {
     }
 }
 
-# 从环境变量读取 API key，不要写死在代码里
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+
+REDIS_HOST = os.environ.get('REDIS_HOST', 'redis')
+REDIS_PORT = int(os.environ.get('REDIS_PORT', 6379))
+REDIS_CAREPLAN_QUEUE = 'careplan_queue'

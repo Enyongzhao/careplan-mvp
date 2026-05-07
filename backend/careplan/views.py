@@ -1,70 +1,40 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .models import Patient, Order, CarePlan
-from .tasks import generate_care_plan
+from .models import CarePlan, Order
+from . import services, serializers
 
 
 @api_view(['POST'])
 def create_order(request):
-    data = request.data
+    # DEBUG ① views.py — request.data 是 DRF 解析后的 dict，不是原始 JSON 字符串
+    print(f"\n[DEBUG views] request.data type={type(request.data)}")
+    print(f"[DEBUG views] request.data = {dict(request.data)}")
 
-    patient, _ = Patient.objects.get_or_create(
-        mrn=data.get('mrn', ''),
-        defaults={
-            'first_name': data.get('patient_first_name', ''),
-            'last_name': data.get('patient_last_name', ''),
-        }
-    )
+    order, care_plan = services.create_order_with_careplan(request.data)
 
-    order = Order.objects.create(
-        patient=patient,
-        medication_name=data.get('medication_name', ''),
-        primary_diagnosis=data.get('primary_diagnosis', ''),
-        additional_diagnoses=data.get('additional_diagnoses', ''),
-        medication_history=data.get('medication_history', ''),
-        patient_records=data.get('patient_records', ''),
-    )
+    # DEBUG ④ views.py — service 返回的是 Django model 实例，不是 dict
+    print(f"[DEBUG views] order type={type(order)}, id={order.id}")
+    print(f"[DEBUG views] care_plan type={type(care_plan)}, id={care_plan.id}, status={care_plan.status}")
 
-    care_plan = CarePlan.objects.create(order=order, status='pending')
-
-    generate_care_plan.delay(care_plan.id)
-
-    return Response({'order_id': str(order.id), 'careplan_id': care_plan.id, 'status': 'pending'}, status=202)
+    response_data = {'order_id': str(order.id), 'careplan_id': care_plan.id, 'status': 'pending'}
+    print(f"[DEBUG views] response_data = {response_data}\n")
+    return Response(response_data, status=202)
 
 
 @api_view(['GET'])
 def get_careplan_status(request, careplan_id):
     try:
-        care_plan = CarePlan.objects.get(id=careplan_id)
+        care_plan = services.get_careplan(careplan_id)
     except CarePlan.DoesNotExist:
         return Response({'error': 'CarePlan not found'}, status=404)
-
-    data = {'status': care_plan.status}
-    if care_plan.status in ('completed', 'failed'):
-        data['content'] = care_plan.content
-    return Response(data)
+    return Response(serializers.serialize_careplan_status(care_plan))
 
 
 @api_view(['GET'])
 def get_order(request, order_id):
     try:
-        order = Order.objects.select_related('patient', 'careplan').get(id=order_id)
+        order = services.get_order_detail(order_id)
     except Order.DoesNotExist:
         return Response({'error': 'Order not found'}, status=404)
-
-    return Response(_build_response(order, order.patient, order.careplan))
-
-
-def _build_response(order, patient, care_plan):
-    return {
-        'id': str(order.id),
-        'status': care_plan.status,
-        'content': care_plan.content,
-        'patient_first_name': patient.first_name,
-        'patient_last_name': patient.last_name,
-        'mrn': patient.mrn,
-        'medication_name': order.medication_name,
-        'primary_diagnosis': order.primary_diagnosis,
-        'patient_records': order.patient_records,
-    }
+    return Response(serializers.OrderDetailSerializer(order).data)

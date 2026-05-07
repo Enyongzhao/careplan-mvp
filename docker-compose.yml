@@ -48,6 +48,26 @@ services:
     volumes:
       - ./backend:/app
 
+  celery_worker:
+    build: ./backend
+    command: celery -A careplan worker --loglevel=info
+    env_file:
+      - .env
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - POSTGRES_DB=careplan
+      - POSTGRES_USER=careplan
+      - POSTGRES_PASSWORD=careplan
+      - POSTGRES_HOST=db
+      - REDIS_HOST=redis
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+
   frontend:
     build: ./frontend
     ports:

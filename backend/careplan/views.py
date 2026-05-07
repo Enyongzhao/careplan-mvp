@@ -1,14 +1,8 @@
-import redis
-import openai
-from django.conf import settings
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .models import Patient, Order, CarePlan
-
-
-def _get_redis():
-    return redis.Redis(host=settings.REDIS_HOST, port=settings.REDIS_PORT, decode_responses=True)
+from .tasks import generate_care_plan
 
 
 @api_view(['POST'])
@@ -34,7 +28,7 @@ def create_order(request):
 
     care_plan = CarePlan.objects.create(order=order, status='pending')
 
-    _get_redis().rpush(settings.REDIS_CAREPLAN_QUEUE, str(care_plan.id))
+    generate_care_plan.delay(care_plan.id)
 
     return Response({'order_id': str(order.id), 'careplan_id': care_plan.id, 'status': 'pending'}, status=202)
 
@@ -61,32 +55,3 @@ def _build_response(order, patient, care_plan):
         'primary_diagnosis': order.primary_diagnosis,
         'patient_records': order.patient_records,
     }
-
-
-def call_llm(order, patient):
-    client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-
-    prompt = f"""You are a clinical pharmacist. Generate a professional care plan for this patient.
-
-Patient Information:
-- Name: {patient.first_name} {patient.last_name}
-- MRN: {patient.mrn}
-- Primary Diagnosis: {order.primary_diagnosis}
-- Medication: {order.medication_name}
-- Patient Records: {order.patient_records}
-
-Generate a care plan with these sections:
-1. Problem List / Drug Therapy Problems (DTPs)
-2. Goals (SMART)
-3. Pharmacist Interventions / Plan
-4. Monitoring Plan & Lab Schedule
-
-Be specific and clinical."""
-
-    response = client.chat.completions.create(
-        model='gpt-4o',
-        messages=[{'role': 'user', 'content': prompt}],
-        max_tokens=1024,
-    )
-
-    return response.choices[0].message.content

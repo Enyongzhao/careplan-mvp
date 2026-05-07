@@ -40,6 +40,7 @@ services:
       - POSTGRES_PASSWORD=careplan
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
+      - USE_MOCK_LLM=true
     depends_on:
       db:
         condition: service_healthy
@@ -60,6 +61,7 @@ services:
       - POSTGRES_PASSWORD=careplan
       - POSTGRES_HOST=db
       - REDIS_HOST=redis
+      - USE_MOCK_LLM=true
     depends_on:
       db:
         condition: service_healthy

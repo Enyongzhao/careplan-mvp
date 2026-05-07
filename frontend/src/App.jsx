@@ -1,6 +1,7 @@
-import { useState } from "react"
+import { useState, useRef } from "react"
 
 const API_URL = "http://localhost:8000"
+const POLL_INTERVAL_MS = 3000
 
 export default function App() {
   const [form, setForm] = useState({
@@ -12,34 +13,65 @@ export default function App() {
     patient_records: "",
   })
 
-  const [result, setResult] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [pollStatus, setPollStatus] = useState(null)   // null | 'pending' | 'processing' | 'completed' | 'failed'
+  const [careplan, setCareplan] = useState(null)        // { content } when completed/failed
+  const intervalRef = useRef(null)
 
   function handleChange(e) {
     setForm({ ...form, [e.target.name]: e.target.value })
   }
 
+  function stopPolling() {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
+  }
+
+  function startPolling(careplanId) {
+    intervalRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/careplan/${careplanId}/status/`)
+        const data = await res.json()
+
+        setPollStatus(data.status)
+
+        if (data.status === "completed" || data.status === "failed") {
+          stopPolling()
+          setCareplan({ content: data.content })
+        }
+      } catch {
+        // network blip — keep polling
+      }
+    }, POLL_INTERVAL_MS)
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
-    setLoading(true)
-    setResult(null)
+    setSubmitting(true)
+    setPollStatus(null)
+    setCareplan(null)
+    stopPolling()
 
     try {
-      // POST 提交患者信息
-      // 因为是 sync，这个请求会等 LLM 生成完才返回
-      const response = await fetch(`${API_URL}/api/orders/`, {
+      const res = await fetch(`${API_URL}/api/orders/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       })
-      const data = await response.json()
-      setResult(data)
-    } catch (err) {
-      setResult({ status: "failed", content: "Network error" })
+      const data = await res.json()
+      setPollStatus("pending")
+      startPolling(data.careplan_id)
+    } catch {
+      setPollStatus("failed")
+      setCareplan({ content: "Network error — could not submit form." })
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
+
+  const isPolling = pollStatus === "pending" || pollStatus === "processing"
 
   return (
     <div style={{ maxWidth: 700, margin: "40px auto", fontFamily: "sans-serif", padding: "0 20px" }}>
@@ -90,38 +122,46 @@ export default function App() {
             rows={5}
             style={inputStyle}
           />
-          <button
-            type="submit"
-            disabled={loading}
-            style={buttonStyle}
-          >
-            {loading ? "Generating Care Plan... (please wait)" : "Generate Care Plan"}
+          <button type="submit" disabled={submitting || isPolling} style={buttonStyle}>
+            {submitting ? "Submitting..." : "Generate Care Plan"}
           </button>
         </div>
       </form>
 
-      {/* 结果展示 */}
-      {result && (
+      {/* Polling status */}
+      {isPolling && (
+        <div style={{ marginTop: 32, color: "#555" }}>
+          <p>
+            Status: <strong>{pollStatus}</strong>
+            {"  "}
+            <span style={{ animation: "none" }}>⏳ Checking every 3 s...</span>
+          </p>
+        </div>
+      )}
+
+      {/* Completed */}
+      {pollStatus === "completed" && careplan && (
         <div style={{ marginTop: 32 }}>
-          <p>Status: <strong>{result.status}</strong></p>
+          <p>Status: <strong style={{ color: "#16a34a" }}>completed</strong></p>
+          <div style={{
+            background: "#f5f5f5",
+            padding: 20,
+            borderRadius: 8,
+            whiteSpace: "pre-wrap",
+            lineHeight: 1.6,
+          }}>
+            {careplan.content}
+          </div>
+        </div>
+      )}
 
-          {result.status === "completed" && (
-            <div style={{
-              background: "#f5f5f5",
-              padding: 20,
-              borderRadius: 8,
-              whiteSpace: "pre-wrap",
-              lineHeight: 1.6
-            }}>
-              {result.content}
-            </div>
-          )}
-
-          {result.status === "failed" && (
-            <div style={{ color: "red" }}>
-              Error: {result.content}
-            </div>
-          )}
+      {/* Failed */}
+      {pollStatus === "failed" && (
+        <div style={{ marginTop: 32 }}>
+          <p>Status: <strong style={{ color: "#dc2626" }}>failed</strong></p>
+          <div style={{ color: "#dc2626" }}>
+            {careplan?.content || "An error occurred."}
+          </div>
         </div>
       )}
     </div>

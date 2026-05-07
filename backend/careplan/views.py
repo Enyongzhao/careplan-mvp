@@ -34,6 +34,19 @@ def create_order(request):
 
 
 @api_view(['GET'])
+def get_careplan_status(request, careplan_id):
+    try:
+        care_plan = CarePlan.objects.get(id=careplan_id)
+    except CarePlan.DoesNotExist:
+        return Response({'error': 'CarePlan not found'}, status=404)
+
+    data = {'status': care_plan.status}
+    if care_plan.status in ('completed', 'failed'):
+        data['content'] = care_plan.content
+    return Response(data)
+
+
+@api_view(['GET'])
 def get_order(request, order_id):
     try:
         order = Order.objects.select_related('patient', 'careplan').get(id=order_id)

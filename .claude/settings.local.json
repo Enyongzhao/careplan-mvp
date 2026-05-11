@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"e:/careplan-mvp/.github/workflows\")"
+    ],
+    "additionalDirectories": [
+      "e:\\careplan-mvp\\.github"
+    ]
+  }
+}

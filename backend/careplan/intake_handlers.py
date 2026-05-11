@@ -22,3 +22,7 @@ def parse_pharmacorp_xml(xml_string: str) -> dict:
         "primary_diagnosis": root.findtext("PrimaryDiagnosis"),
         "patient_records": root.findtext("PatientRecords"),
     }
+
+'''
+    探究多个数据源的输入格式
+'''
